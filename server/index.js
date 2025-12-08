@@ -45,6 +45,14 @@ const reportsRoutes = require("./routes/reports");
 const { router: blockRoutes } = require("./routes/block");
 
 const app = express();
+// Health check route
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok" });
+});
+app.get("/", (req, res) => {
+  res.send("QuickFix Backend is running");
+});
+
 const PORT = process.env.PORT || process.env.BACKEND_PORT || 5000;
 
 // 🔍 Logga alla requests som kommer in till backend
