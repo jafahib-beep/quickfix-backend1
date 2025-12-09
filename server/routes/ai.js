@@ -32,20 +32,27 @@ async function callOpenAI(endpoint, body) {
   return response.json();
 }
 
-router.post("/ask-ai", async (req, res) => {
+router.post("/chat", async (req, res) => {
   try {
-    const { question, language = "en" } = req.body;
+    const { messages, language, imageBase64, videoFileName } = req.body;
 
-    if (!question || typeof question !== "string") {
-      return res.status(400).json({ error: "Question is required" });
-    }
+    const completion = await callOpenAI("chat/completions", {
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "You are QuickFix AI, a helpful repair assistant." },
+        ...messages.map(m => ({ role: m.role, content: m.content })),
+      ],
+      temperature: 0.7,
+      max_tokens: 500,
+    });
 
-    if (!openai) {
-      return res.json({
-        answer:
-          "AI service is not configured. Please check your OpenAI API key.",
-      });
-    }
+    res.json({ answer: completion.choices[0].message.content });
+  } catch (err) {
+    console.error("Chat error:", err);
+    res.status(500).json({ error: "AI chat request failed" });
+  }
+});
+
 
     const languageNames = {
       en: "English",
