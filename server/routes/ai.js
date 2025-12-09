@@ -34,7 +34,7 @@ async function callOpenAI(endpoint, body) {
 
 router.post("/chat", async (req, res) => {
   try {
-    const { messages, language } = req.body;
+    const { messages = [], language } = req.body || {};
 
     const languageNames = {
       en: "English",
@@ -50,17 +50,19 @@ router.post("/chat", async (req, res) => {
 You give short, practical instructions.
 Respond in ${languageName}.`;
 
-    const completion = await openai.chat.completions.create({
+    const body = {
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
-        ...messages.map(m => ({ role: m.role, content: m.content })),
+        ...messages.map((m) => ({ role: m.role, content: m.content })),
       ],
       temperature: 0.7,
       max_tokens: 500,
-    });
+    };
 
-    const answer = completion.choices[0].message.content.trim();
+    const completion = await callOpenAI("chat/completions", body);
+    const answer = completion?.choices?.[0]?.message?.content?.trim() || "";
+
     return res.json({ answer });
 
   } catch (error) {
@@ -71,6 +73,7 @@ Respond in ${languageName}.`;
     });
   }
 });
+
 
 
     const answer = completion.choices[0].message.content.trim();
