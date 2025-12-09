@@ -32,7 +32,7 @@ async function callOpenAI(endpoint, body) {
   return response.json();
 }
 
-  }
+  
 
 });
 
