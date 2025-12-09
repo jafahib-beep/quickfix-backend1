@@ -34,30 +34,7 @@ async function callOpenAI(endpoint, body) {
 
 router.post("/chat", async (req, res) => {
   try {
-    const { messages, language, imageBase64, videoFileName } = req.body;
-
-    // Bygger OpenAI request-body
-    const body = {
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: "You are QuickFix AI, a helpful repair assistant." },
-        ...messages.map(m => ({ role: m.role, content: m.content }))
-      ],
-      temperature: 0.7,
-      max_tokens: 500,
-    };
-
-    // Anropar OpenAI via vår egen funktion
-    const completion = await callOpenAI("chat/completions", body);
-
-    return res.json({ answer: completion.choices[0].message.content });
-  } catch (err) {
-    console.error("Chat error:", err);
-    res.status(500).json({ error: "AI chat request failed" });
-  }
-});
-
-
+    const { messages, language } = req.body;
 
     const languageNames = {
       en: "English",
@@ -65,26 +42,36 @@ router.post("/chat", async (req, res) => {
       ar: "Arabic",
       de: "German",
       fr: "French",
-      ru: "Russian",
     };
+
     const languageName = languageNames[language] || "English";
 
-    const systemPrompt = `You are QuickFix AI, a helpful DIY and home repair assistant. 
-You provide concise, practical advice for fixing common household problems.
-Keep responses under 300 words.
-Be friendly and encouraging.
-If a problem seems dangerous or requires professional help, say so.
+    const systemPrompt = `You are QuickFix AI, a helpful DIY and home repair assistant.
+You give short, practical instructions.
 Respond in ${languageName}.`;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: question },
+        ...messages.map(m => ({ role: m.role, content: m.content })),
       ],
       temperature: 0.7,
       max_tokens: 500,
     });
+
+    const answer = completion.choices[0].message.content.trim();
+    return res.json({ answer });
+
+  } catch (error) {
+    console.error("Chat error:", error);
+    return res.status(500).json({
+      error: "Failed to get AI response",
+      details: error.message,
+    });
+  }
+});
+
 
     const answer = completion.choices[0].message.content.trim();
 
