@@ -11,6 +11,38 @@ router.post("/text", async (req: Request, res: Response) => {
     if (!prompt) {
       return res.status(400).json({ error: "prompt is required" });
     }
+// Alias för frontend som fortfarande anropar /chat
+router.post("/chat", async (req: Request, res: Response) => {
+  try {
+    const { prompt, messages } = req.body as any;
+
+    // Om frontend skickar messages-array (som en chat), konvertera till textprompt
+    let finalPrompt = prompt;
+    if (!finalPrompt && Array.isArray(messages)) {
+      finalPrompt = messages
+        .map((m: any) => {
+          // säkerställ att content finns
+          const content = m?.content ?? "";
+          return `${m.role || "user"}: ${content}`;
+        })
+        .join("\n");
+    }
+
+    if (!finalPrompt) {
+      return res.status(400).json({ error: "prompt or messages is required" });
+    }
+
+    // askAI finns redan importerad i toppen av ai.ts
+    const answer = await askAI(finalPrompt);
+    return res.json({ answer });
+  } catch (err) {
+    console.error("Chat alias error:", err);
+    return res.status(500).json({
+      error: "AI chat request failed",
+      details: (err as Error).message,
+    });
+  }
+});
 
     const answer = await askAI(prompt);
     res.json({ answer });
