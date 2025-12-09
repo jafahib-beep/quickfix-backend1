@@ -1,90 +1,104 @@
 import { Router, Request, Response } from "express";
-import { askAI, analyzeImage, liveAssistOnImage } from "../openai";
+import { askAI, callOpenAI, analyzeImage, liveAssistOnImage, isConfigured } from "../openai";
 
 const router = Router();
 
-// POST /api/ai/text
-router.post("/text", async (req: Request, res: Response) => {
-  try {
-    const { prompt } = req.body;
+/**
+ * HEALTH CHECK
+ */
+router.get("/health", (req: Request, res: Response) => {
+  if (!isConfigured) {
+    return res.status(500).json({
+      status: "error",
+      service: "ai",
+      note: "OpenAI key missing",
+    });
+  }
 
-    if (!prompt) {
-      return res.status(400).json({ error: "prompt is required" });
-    }
-// Alias för frontend som fortfarande anropar /chat
+  res.json({
+    status: "ok",
+    service: "ai",
+    note: "ready",
+  });
+});
+
+/**
+ * POST /api/ai/chat
+ */
 router.post("/chat", async (req: Request, res: Response) => {
   try {
-    const { prompt, messages } = req.body as any;
+    if (!isConfigured)
+      return res.status(500).json({ error: "AI backend not configured (missing API key)" });
 
-    // Om frontend skickar messages-array (som en chat), konvertera till textprompt
-    let finalPrompt = prompt;
-    if (!finalPrompt && Array.isArray(messages)) {
-      finalPrompt = messages
-        .map((m: any) => {
-          // säkerställ att content finns
-          const content = m?.content ?? "";
-          return `${m.role || "user"}: ${content}`;
-        })
-        .join("\n");
+    const { messages } = req.body;
+
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ error: "Messages array is required" });
     }
 
-    if (!finalPrompt) {
-      return res.status(400).json({ error: "prompt or messages is required" });
-    }
+    const last = messages[messages.length - 1];
+    const userText = last?.content || "";
 
-    // askAI finns redan importerad i toppen av ai.ts
-    const answer = await askAI(finalPrompt);
+    const answer = await askAI(userText);
+
     return res.json({ answer });
-  } catch (err) {
-    console.error("Chat alias error:", err);
-    return res.status(500).json({
-      error: "AI chat request failed",
-      details: (err as Error).message,
+
+  } catch (err: any) {
+    console.error("CHAT ERROR:", err);
+    res.status(500).json({
+      error: "AI chat failed",
+      details: err?.message || String(err),
     });
   }
 });
 
-    const answer = await askAI(prompt);
-    res.json({ answer });
-  } catch (err) {
-    console.error("AI text error:", err);
-    res.status(500).json({ error: "AI text request failed" });
-  }
-});
-
-// POST /api/ai/image
-// body: { imageBase64: string }
+/**
+ * POST /api/ai/image
+ */
 router.post("/image", async (req: Request, res: Response) => {
   try {
+    if (!isConfigured)
+      return res.status(500).json({ error: "AI backend not configured" });
+
     const { imageBase64 } = req.body;
 
-    if (!imageBase64) {
+    if (!imageBase64)
       return res.status(400).json({ error: "imageBase64 is required" });
-    }
 
     const result = await analyzeImage(imageBase64);
+
     res.json({ result });
-  } catch (err) {
-    console.error("AI image error:", err);
-    res.status(500).json({ error: "AI image request failed" });
+
+  } catch (err: any) {
+    res.status(500).json({
+      error: "AI image failed",
+      details: err?.message || String(err),
+    });
   }
 });
 
-// POST /api/ai/liveassist
-// body: { imageBase64: string }
+/**
+ * POST /api/ai/liveassist
+ */
 router.post("/liveassist", async (req: Request, res: Response) => {
   try {
+    if (!isConfigured)
+      return res.status(500).json({ error: "AI not configured" });
+
     const { imageBase64 } = req.body;
 
-    if (!imageBase64) {
+    if (!imageBase64)
       return res.status(400).json({ error: "imageBase64 is required" });
-    }
 
     const result = await liveAssistOnImage(imageBase64);
-    res.json(result);
-  } catch (err) {
-    console.error("AI liveassist error:", err);
-    res.status(500).json({ error: "AI liveassist request failed" });
+
+    res.json({ result });
+
+  } catch (err: any) {
+    res.status(500).json({
+      error: "AI liveassist failed",
+      details: err?.message || String(err),
+    });
   }
 });
 
