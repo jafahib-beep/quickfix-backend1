@@ -42,8 +42,6 @@ async function callOpenAI(endpoint, body) {
   } catch (error) {
     console.error("Ask AI error:", error);
     res.status(500).json({ error: "Failed to get AI response" });
-  }
-});
 
 /**
  * AI Chat endpoint - Fixed to properly handle:
