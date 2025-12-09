@@ -1,86 +1,108 @@
+// server/openai.ts
+/**
+ * Robust OpenAI wrapper for QuickFix backend.
+ * - Läs OPENAI_API_KEY från env (obligatorisk)
+ * - Stöder askAI (enkla prompts), callOpenAI (generisk), analyzeImage och liveAssistOnImage
+ * - Ger tydliga felmeddelanden när API-nyckel saknas
+ */
+
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const API_KEY = process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || "";
+const API_BASE = process.env.OPENAI_API_BASE || undefined;
 
-// 🔹 Enkel text-chat
-export async function askAI(prompt: string) {
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      {
-        role: "user",
-        content: prompt,
-      },
-    ],
+let client: OpenAI | null = null;
+export const isConfigured = Boolean(API_KEY);
+
+if (isConfigured) {
+  client = new OpenAI({
+    apiKey: API_KEY,
+    baseURL: API_BASE, // optional
   });
-
-  return response.choices[0].message.content ?? "";
+} else {
+  console.warn(
+    "[openai] OPENAI_API_KEY not set. AI features will be disabled until you set the env var."
+  );
 }
 
-// 🔹 Bildanalys – tar en base64-bild och ger beskrivning + fix-steg
-export async function analyzeImage(base64Image: string) {
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text: `
-Du är en expert på felsökning i hemmet.
-1) Beskriv kort vad du ser.
-2) Identifiera troliga problem.
-3) Ge tydliga steg-för-steg hur man löser det.
-Svara på svenska.`,
-          },
-          {
-            type: "image_url",
-            image_url: `data:image/jpeg;base64,${base64Image}`,
-          },
-        ],
-      },
-    ],
-  });
+/**
+ * askAI: enkel wrapper för textfrågor
+ * @param prompt string
+ * @returns string (AI-svar)
+ */
+export async function askAI(prompt: string, opts?: { model?: string; temperature?: number; max_tokens?: number; }) {
+  if (!client) throw new Error("AI backend not configured (OPENAI_API_KEY missing)");
 
-  return response.choices[0].message.content ?? "";
+  const model = opts?.model || "gpt-4o-mini";
+  const temperature = opts?.temperature ?? 0.7;
+  const max_tokens = opts?.max_tokens ?? 800;
+
+  try {
+    const resp = await client.chat.completions.create({
+      model,
+      messages: [{ role: "user", content: prompt }],
+      temperature,
+      max_tokens,
+    });
+    return resp?.choices?.[0]?.message?.content ?? "";
+  } catch (err: any) {
+    console.error("[openai][askAI] error:", err?.message ?? err);
+    throw new Error("OpenAI askAI error: " + (err?.message || String(err)));
+  }
 }
 
-// 🔹 LiveAssist – samma som bildanalys men mer fokus på "var" felet sitter
-export async function liveAssistOnImage(base64Image: string) {
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text: `
-Du är en visuell assistent.
+/**
+ * callOpenAI: generell gateway om du i koden vill köra chat.completions eller responses etc.
+ * endpoint example: "chat/completions" or use body shaped for client.responses.create
+ */
+export async function callOpenAI(endpoint: string, body: any) {
+  if (!client) throw new Error("AI backend not configured (OPENAI_API_KEY missing)");
 
-1) Förklara EXAKT var problemet är på bilden (t.ex. "nere till vänster", "vid den röda kabeln", "runt skruven").
-2) Beskriv hur användaren kan hitta samma punkt på sin riktiga produkt.
-3) Ge sedan steg-för-steg hur man löser felet.
-
-Svara kort och tydligt på svenska.`,
-          },
-          {
-            type: "image_url",
-            image_url: `data:image/jpeg;base64,${base64Image}`,
-          },
-        ],
-      },
-    ],
-  });
-
-  const text = response.choices[0].message.content ?? "";
-
-  // Här kan vi senare lägga till riktiga koordinater / bounding box.
-  // Nu returnerar vi bara texten.
-  return {
-    explanation: text,
-  };
+  try {
+    if (endpoint === "chat/completions") {
+      return await client.chat.completions.create(body);
+    }
+    // fallback to responses.create for generic usage
+    return await client.responses.create(body);
+  } catch (err: any) {
+    console.error("[openai][callOpenAI] error:", err?.message ?? err);
+    throw new Error("OpenAI callOpenAI error: " + (err?.message || String(err)));
+  }
 }
+
+/**
+ * analyzeImage: enkel analys via text-call. (Du kan byta till Vision endpoints om tillgängligt.)
+ * Returnerar objekt resp (rått OpenAI-svar) — route kan parsa vidare.
+ */
+export async function analyzeImage(imageBase64: string, opts?: { model?: string }) {
+  if (!client) throw new Error("AI backend not configured (OPENAI_API_KEY missing)");
+  try {
+    const model = opts?.model || "gpt-4o-mini";
+    // Här använder vi responses.create med en kort prompt + embedded base64 (enklare).
+    const prompt = `Please analyze the image provided as base64. Return JSON with keys: whatISee, likelyIssue, steps (array), safetyNote, overlays (array), spareParts (array). Image: data:image/jpeg;base64,${imageBase64}`;
+    const resp = await client.responses.create({
+      model,
+      input: prompt,
+    });
+    return resp;
+  } catch (err: any) {
+    console.error("[openai][analyzeImage] error:", err?.message ?? err);
+    throw new Error("OpenAI analyzeImage error: " + (err?.message || String(err)));
+  }
+}
+
+/**
+ * liveAssistOnImage: liknande analyzeImage men kan returnera mer detaljer eller använda andra inställningar
+ */
+export async function liveAssistOnImage(imageBase64: string, opts?: { model?: string }) {
+  return analyzeImage(imageBase64, opts);
+}
+
+export default {
+  client,
+  isConfigured,
+  askAI,
+  callOpenAI,
+  analyzeImage,
+  liveAssistOnImage,
+};
