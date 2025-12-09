@@ -54,29 +54,7 @@ async function callOpenAI(endpoint, body) {
  * FIX: Ensured proper message formatting for OpenAI API and added
  * better error handling with descriptive error messages.
  */
-router.post("/chat", optionalAuth, async (req, res) => {
-  try {
-    const { messages, language = "en", imageBase64, videoFileName } = req.body;
 
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      return res.status(400).json({ error: "Messages array is required" });
-    }
-
-    if (!openai) {
-      return res.json({
-        answer:
-          "AI service is not configured. Please check your OpenAI API key.",
-      });
-    }
-
-    const languageNames = {
-      en: "English",
-      sv: "Swedish",
-      ar: "Arabic",
-      de: "German",
-      fr: "French",
-      ru: "Russian",
-    };
     const languageName = languageNames[language] || "English";
 
     const systemPrompt = `You are QuickFix AI, an experienced and friendly DIY technician assistant for a mobile app called QuickFix.
