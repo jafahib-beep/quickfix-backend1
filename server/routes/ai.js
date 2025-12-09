@@ -36,22 +36,27 @@ router.post("/chat", async (req, res) => {
   try {
     const { messages, language, imageBase64, videoFileName } = req.body;
 
-    const completion = await callOpenAI("chat/completions", {
+    // Bygger OpenAI request-body
+    const body = {
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: "You are QuickFix AI, a helpful repair assistant." },
-        ...messages.map(m => ({ role: m.role, content: m.content })),
+        ...messages.map(m => ({ role: m.role, content: m.content }))
       ],
       temperature: 0.7,
       max_tokens: 500,
-    });
+    };
 
-    res.json({ answer: completion.choices[0].message.content });
+    // Anropar OpenAI via vår egen funktion
+    const completion = await callOpenAI("chat/completions", body);
+
+    return res.json({ answer: completion.choices[0].message.content });
   } catch (err) {
     console.error("Chat error:", err);
     res.status(500).json({ error: "AI chat request failed" });
   }
 });
+
 
 
     const languageNames = {
