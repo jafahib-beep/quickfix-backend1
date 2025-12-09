@@ -32,49 +32,9 @@ async function callOpenAI(endpoint, body) {
   return response.json();
 }
 
-router.post("/chat", async (req, res) => {
-  try {
-    const { messages = [], language } = req.body || {};
-
-    const languageNames = {
-      en: "English",
-      sv: "Swedish",
-      ar: "Arabic",
-      de: "German",
-      fr: "French",
-    };
-
-    const languageName = languageNames[language] || "English";
-
-    const systemPrompt = `You are QuickFix AI, a helpful DIY and home repair assistant.
-You give short, practical instructions.
-Respond in ${languageName}.`;
-
-    const body = {
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...messages.map((m) => ({ role: m.role, content: m.content })),
-      ],
-      temperature: 0.7,
-      max_tokens: 500,
-    };
-
-    const completion = await callOpenAI("chat/completions", body);
-    const answer = completion?.choices?.[0]?.message?.content?.trim() || "";
-
-    return res.json({ answer });
-
-  } catch (error) {
-    console.error("Chat error:", error);
-    return res.status(500).json({
-      error: "Failed to get AI response",
-      details: error.message,
-    });
   }
+
 });
-
-
 
     const answer = completion.choices[0].message.content.trim();
 
